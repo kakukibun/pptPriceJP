@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>パワポ料金計算</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+        h3 {
+            text-align: center;
+            color: #007bff;
+        }
+        .suggestion {
+            text-align: center;
+            color: red;
+            font-weight: bold;
+        }
+        .detail-text {
+            text-align: center;
+            color: #333;
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        .detail-text button {
+            width: auto;
+            margin-left: 10px;
+            background-color: #007bff;
+        }
+        .detail-text button:hover {
+            background-color: #0056b3;
+        }
+        .watermark {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"><text x="50%" y="50%" fill="rgba(255,255,255,0.5)" font-size="20" font-family="Arial" text-anchor="middle" dy=".3em">私密报价</text></svg>') repeat;
+            opacity: 0.5;
+        }
+        .hidden {
+            display: none;
+        }
+        .password-prompt {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body oncontextmenu="return false;" onkeydown="return disableKey(event);">
+    <div id="password-container" class="password-prompt">
+        <div>
+            <label for="password">パスコードを入力してください:</label>
+            <input type="password" id="password" />
+            <button onclick="checkPassword()">次へ</button>
+        </div>
+    </div>
+    <div id="content" class="container hidden">
+        <div class="watermark"></div>
+        <h2>パワポ料金計算</h2>
+        <div class="form-group">
+            <label for="shop-status">店铺の状态:</label>
+            <select id="shop-status">
+                <option value="normal">正常期</option>
+                <option value="promotion">冲量期</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="pages">枚数:</label>
+            <input type="number" id="pages" min="1">
+        </div>
+        <div class="form-group">
+            <label for="urgency">納期（12時間内は特急料金が発生する）:</label>
+            <select id="urgency">
+                <option value="12hours">12時間中</option>
+                <option value="1day">１日中</option>
+                <option value="2days">２日中</option>
+                <option value="3days">３日中</option>
+                <option value="3daysplus">４日後</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="design">プラン（お客様はテンプレートを提供する場合、ベーシックがすすめ）:</label>
+            <select id="design">
+                <option value="simple">ベーシック</option>
+                <option value="general">一般設計</option>
+                <option value="standard">スタンダード設計</option>
+                <option value="premium">プレミアム設計</option>
+                <option value="highEnd">高級設計</option>
+                <option value="chief">マスター設計</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="contentPage">動画:</label>
+            <select id="contentPage">
+                <option value="static">無し</option>
+                <option value="dynamic">有り</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="ziLiao">内容は提供するか:</label>
+            <select id="ziLiao">
+                <option value="tiGong">提供する</option>
+                <option value="noTiGong">提供せず</option>
+                <option value="yiBuFen">提供するが、完全ではない</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="tables">データ表制作するか:</label>
+            <select id="tables" onchange="toggleTableInput()">
+                <option value="no">いいえ</option>
+                <option value="yes">はい</option>
+            </select>
+        </div>
+        <div class="form-group hidden" id="table-count-group">
+            <label for="table-count">データ表枚数:</label>
+            <input type="number" id="table-count" min="0">
+        </div>
+        <button onclick="calculatePrice()">基本価格</button>
+        <h3 id="quote">基本価格（手数料抜き）: ¥0.00</h3>
+        <div class="detail-text">
+            <span id="details"> </span>
+            <button onclick="copyDetails()">コーピー</button>
+        </div>
+        <div class="suggestion" id="suggestion">建议报价: ¥0.00 ~ ¥0.00</div>
+    </div>
+
+    <script>
+        function disableKey(e) {
+            if (e.key === "F12" || (e.ctrlKey && e.shiftKey && e.key === "I")) {
+                e.preventDefault();
+                return false;
+            }
+        }
+
+        function checkPassword() {
+            const password = document.getElementById('password').value;
+            if (password === '666') {
+                document.getElementById('password-container').style.display = 'none';
+                document.getElementById('content').classList.remove('hidden');
+            } else {
+                alert('パスコードは間違え！');
+            }
+        }
+
+        function toggleTableInput() {
+            const tableSelect = document.getElementById('tables');
+            const tableCountGroup = document.getElementById('table-count-group');
+            if (tableSelect.value === 'yes') {
+                tableCountGroup.classList.remove('hidden');
+            } else {
+                tableCountGroup.classList.add('hidden');
+            }
+        }
+
+
+        function calculatePrice() {
+            const pages = document.getElementById('pages').value;
+            const urgency = document.getElementById('urgency').value;
+            const design = document.getElementById('design').value;
+            const content = document.getElementById('contentPage').value;
+            const ziLiao = document.getElementById('ziLiao').value;
+            const tables = document.getElementById('tables').value;
+            const tableCount = document.getElementById('table-count').value || 0;
+            const shopStatus = document.getElementById('shop-status').value;
+
+            let price = 0; // Initialize price
+
+            if (design === 'simple') {
+                price = content === 'static' ? pages * 5 : pages * 8;
+            } else if (design === 'general') {
+                price = content === 'static' ? pages * 8 : pages * 12;
+            } else if (design === 'standard') {
+                price = content === 'static' ? pages * 12 : pages * 15;
+            } else if (design === 'premium') {
+                price = content === 'static' ? pages * 25 : pages * 30;
+            } else if (design === 'highEnd') {
+                price = content === 'static' ? pages * 40 : pages * 45;
+            } else if (design === 'chief') {
+                price = content === 'static' ? pages * 150 : pages * 200;
+            }
+
+            if (urgency === '12hours') {
+                price += pages * 1; // Additional charge for urgency
+            }
+
+            switch (ziLiao) {
+                case 'tiGong':
+                    price += pages * 0; // No additional charge for providing all materials
+                    break;
+                case 'noTiGong':
+                    price += pages * 2; // Additional charge for not providing materials
+                    break;
+                case 'yiBuFen':
+                    price += pages * 1; // Additional charge for providing partial materials
+                    break;
+            }
+
+            if (tables === 'yes') {
+                price += tableCount * 5; // Additional charge for each table
+            }
+
+            let totalPrice = parseFloat(price.toFixed(2));
+	    let suggestionMax = ((totalPrice * 1.1) + 60).toFixed(2);
+            if (shopStatus === 'promotion') {
+                totalPrice = totalPrice * 0.8; // Apply 20% discount during promotion
+            }
+
+            let suggestionMin = ((totalPrice * 0.8) + 60).toFixed(2);
+            
+
+            if (suggestionMin < 100) {
+                suggestionMin = 100;
+            }
+            if (suggestionMax < 100) {
+                suggestionMax = 100;
+            }
+
+            document.getElementById('quote').innerText = `基本価格: ¥${totalPrice.toFixed(2)}，（普通は＋手数料60）`;
+
+            const urgencyText = urgency === '12hours' ? '12時間中' : 
+                                urgency === '1day' ? '１日中' : 
+                                urgency === '2days' ? '２日中' : 
+                                urgency === '3days' ? '３日中' : '４日後';
+            const designText = design === 'simple' ? 'ベーシック' :
+                               design === 'general' ? '一般設計' :
+                               design === 'standard' ? 'スタンダード設計' :
+                               design === 'premium' ? 'プレミアム設計' :
+                               design === 'highEnd' ? '高級設計' : 'マスター設計';
+            const contentText = content === 'static' ? '無し' : '有り';
+            const ziLiaoText = ziLiao === 'tiGong' ? '内容は提供する' : 
+                               ziLiao === 'noTiGong' ? '内容は提供せず' : '内容は提供するが、完全ではない';
+            const tablesText = tables === 'no' ? 'データ表なし' : `デザイナーが${tableCount}枚データ表を制作する`;
+
+            const finalPrice = Math.max(100, (totalPrice + 60).toFixed(2));
+            const detailsText = `${pages}枚、納期は${urgencyText}、${designText}，動画${contentText}、${ziLiaoText}，${tablesText}，料金：¥${finalPrice}。`;
+            document.getElementById('details').innerText = detailsText;
+
+            document.getElementById('suggestion').innerText = `価格範囲: ¥${suggestionMin} ~ ¥${suggestionMax}`;
+        }
+
+        function copyDetails() {
+            const detailsText = document.getElementById('details').innerText;
+            navigator.clipboard.writeText(detailsText).then(() => {
+                alert('コーピーした!');
+            }).catch(err => {
+                alert('コーピー失敗した、もう一回試してみて');
+            });
+        }
+    </script>
+</body>
+</html>
